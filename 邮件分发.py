@@ -83,7 +83,7 @@ def get_app_dir() -> Path:
         return Path(sys.executable).parent
     else:
         # 普通 Python 环境：使用脚本所在目录
-        return get_app_dir()
+        return Path(__file__).parent
 
 
 # ==================== 测试模式开关 ====================
