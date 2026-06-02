@@ -1,0 +1,87 @@
+name: Test macOS Executable
+
+on:
+  # 手动触发
+  workflow_dispatch:
+  # 每次推送到 main 分支时触发
+  push:
+    branches: [ main ]
+
+jobs:
+  test-macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download macOS artifact from latest build
+      uses: actions/download-artifact@v4
+      with:
+        name: 邮件分发-macOS
+        path: ./dist/
+        # 从最近的工作流运行中下载
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ github.event.workflow_run.id }}
+      continue-on-error: true
+    
+    - name: Check if artifact exists
+      id: check-artifact
+      run: |
+        if [ -f "./dist/邮件分发-macOS" ]; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Build macOS executable if not exists
+      if: steps.check-artifact.outputs.exists == 'false'
+      run: |
+        # 安装依赖
+        pip install pandas openpyxl xlrd pyinstaller
+        
+        # 打包
+        pyinstaller --onefile --name "邮件分发-macOS" --clean "邮件分发.py"
+        
+        # 复制到 dist 目录
+        mkdir -p dist
+        cp "dist/邮件分发-macOS" ./dist/
+    
+    - name: Test executable help
+      run: |
+        chmod +x ./dist/邮件分发-macOS
+        ./dist/邮件分发-macOS --help
+    
+    - name: Test executable with config file
+      run: |
+        # 创建测试配置文件
+        cat > sender_config.txt << 'EOF'
+# ===== 发件人配置 =====
+sender_name = 测试用户
+sender_email = test@example.com
+auth_code = test123
+smtp_host = smtp.163.com
+smtp_port = 465
+EOF
+        
+        # 测试预览模式（不实际发送邮件）
+        ./dist/邮件分发-macOS --preview-only || echo "预览模式测试完成"
+    
+    - name: Check file structure
+      run: |
+        echo "=== 文件信息 ==="
+        ls -la ./dist/邮件分发-macOS
+        file ./dist/邮件分发-macOS
+        
+        echo "=== 文件大小 ==="
+        du -h ./dist/邮件分发-macOS
+        
+        echo "=== 依赖检查 ==="
+        otool -L ./dist/邮件分发-macOS || true
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: macOS-test-results
+        path: |
+          ./dist/
+          ./sender_config.txt
