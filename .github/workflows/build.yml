@@ -1,0 +1,79 @@
+name: Build Executables
+
+on:
+  # 手动触发
+  workflow_dispatch:
+  # 推送到 main 分支时自动触发
+  push:
+    branches: [ main, master ]
+  # 创建标签时触发（用于发布版本）
+  release:
+    types: [ created ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas openpyxl xlrd pyinstaller
+    
+    - name: Build Windows executable
+      run: |
+        pyinstaller --onefile --name "邮件分发-Windows" --clean "邮件分发.py"
+    
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: 邮件分发-Windows
+        path: dist/邮件分发-Windows.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas openpyxl xlrd pyinstaller
+    
+    - name: Build macOS executable
+      run: |
+        pyinstaller --onefile --name "邮件分发-macOS" --clean "邮件分发.py"
+    
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: 邮件分发-macOS
+        path: dist/邮件分发-macOS
+
+  create-release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+    
+    - name: Upload to Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          邮件分发-Windows/邮件分发-Windows.exe
+          邮件分发-macOS/邮件分发-macOS
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
